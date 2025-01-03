@@ -1,4 +1,4 @@
-import { NodeType, RelationshipType, WinemakingRole } from "./enums.ts";
+import { NodeType, RelationshipType, WinemakingRole } from "./enums";
 
 export interface PersonNode {
   type: NodeType.Person;
@@ -18,25 +18,17 @@ export interface WineryNode {
   logo?: string;
 }
 
-// export type Node = PersonNode | WineryNode;
-
-
-import type { SimulationNodeDatum } from 'd3';
-
-
-export interface Node extends SimulationNodeDatum {
+export interface Node {
   id: string;
   name: string;
   type: NodeType;
-  age?: number;
-  bio?: string;
-  image?: string;
-  location?: string;
-  established?: string;
-  logo?: string;
+  age?: number; // For PersonNode
+  bio?: string; // For PersonNode
+  image?: string; // For PersonNode
+  location?: string; // For WineryNode
+  established?: string; // For WineryNode
+  logo?: string; // For WineryNode
 }
-
-
 
 export interface Link {
   id: string;
@@ -49,8 +41,6 @@ export interface Link {
 }
 
 export interface Graph {
-  nodes: (PersonNode | WineryNode)[];
+  nodes: Node[];
   links: Link[];
 }
-
-

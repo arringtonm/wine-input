@@ -1,51 +1,37 @@
-<template>
+<!-- <template>
   <div class="home-view">
-    <h1>Oregon Wine Industry Map</h1>
     <div ref="graphContainer" class="graph-container"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import * as d3 from 'd3';
-import { useGraph } from '../composables/useGraph';
-import type { Node, Link } from '../models/graph';
 
-// Props
-const props = defineProps<{
-  nodes: Node[];
-  links: Link[];
-}>();
-
-const { graph } = useGraph();
-
-// Refs
-const graphContainer = ref<HTMLElement | null>(null);
-
-onMounted(() => {
-  if (graphContainer.value && graph.value) {
-    createGraphVisualization();
-  }
+// Props: Nodes and Links
+defineProps({
+  nodes: {
+    type: Array,
+    required: true,
+  },
+  links: {
+    type: Array,
+    required: true,
+  },
 });
 
-// Watch for changes in nodes and links
-watch(
-  () => [props.nodes, props.links],
-  () => {
-    if (graphContainer.value && graph.value) {
-      createGraphVisualization();
-    }
-  },
-  { deep: true }
-);
+const graphContainer = ref<HTMLElement | null>(null);
 
-// Create the Graph Visualization with D3.js
-const createGraphVisualization = () => {
-  const width = 800;
-  const height = 600;
+// Graph rendering logic
+const renderGraph = () => {
+  if (!graphContainer.value) return;
 
-  // Clear previous SVG elements
+  // Clear previous graph
   d3.select(graphContainer.value).selectAll('*').remove();
+
+  // Set up dimensions
+  const width = graphContainer.value.offsetWidth;
+  const height = graphContainer.value.offsetHeight;
 
   const svg = d3
     .select(graphContainer.value)
@@ -53,104 +39,86 @@ const createGraphVisualization = () => {
     .attr('width', width)
     .attr('height', height);
 
-  // Create simulation for node layout
-  const simulation = d3.forceSimulation(props.nodes);
-  simulation
+  // Set up simulation
+  const simulation = d3
+    .forceSimulation(nodes)
     .force(
       'link',
-      d3
-        .forceLink(props.links)
-        .id((d: any) => d.id)
-        .distance(100)
+      d3.forceLink(links).id((d: any) => d.id)
     )
     .force('charge', d3.forceManyBody().strength(-200))
     .force('center', d3.forceCenter(width / 2, height / 2));
 
-  // Draw links
-  svg
+  // Links
+  const link = svg
     .append('g')
-    .selectAll<SVGLineElement, Link>('.link')
-    .data(props.links)
+    .selectAll('line')
+    .data(links)
     .enter()
     .append('line')
-    .attr('class', 'link')
-    .attr('stroke-width', 1);
+    .attr('stroke', '#999')
+    .attr('stroke-opacity', 0.6);
 
-  // Draw nodes
+  // Nodes
   const node = svg
     .append('g')
-    .selectAll<SVGCircleElement, Node>('.node')
-    .data(props.nodes)
+    .selectAll('circle')
+    .data(nodes)
     .enter()
     .append('circle')
-    .attr('class', 'node')
     .attr('r', 10)
-    .attr('fill', (d: Node) => (d.type === 'Person' ? 'blue' : 'green'))
+    .attr('fill', '#69b3a2')
     .call(
       d3
-        .drag<SVGCircleElement, Node>()
-        .on('start', (event: d3.D3DragEvent<SVGCircleElement, Node, Node>) =>
-          dragstarted(event)
-        )
-        .on('drag', (event: d3.D3DragEvent<SVGCircleElement, Node, Node>) =>
-          dragged(event)
-        )
-        .on('end', (event: d3.D3DragEvent<SVGCircleElement, Node, Node>) =>
-          dragended(event)
-        )
+        .drag()
+        .on('start', (event: any, d: any) => {
+          if (!event.active) simulation.alphaTarget(0.3).restart();
+          d.fx = d.x;
+          d.fy = d.y;
+        })
+        .on('drag', (event: any, d: any) => {
+          d.fx = event.x;
+          d.fy = event.y;
+        })
+        .on('end', (event: any, d: any) => {
+          if (!event.active) simulation.alphaTarget(0);
+          d.fx = null;
+          d.fy = null;
+        })
     );
 
-  node.append('title').text((d: Node) => d.name);
+  node.append('title').text((d: any) => d.name);
 
-  // Define tick function for the simulation
   simulation.on('tick', () => {
-    svg
-      .selectAll<SVGLineElement, Link>('.link')
-      .attr('x1', (d: any) => d.source.x)
-      .attr('y1', (d: any) => d.source.y)
-      .attr('x2', (d: any) => d.target.x)
-      .attr('y2', (d: any) => d.target.y);
+    link
+      .attr('x1', (d: any) => (d.source as any).x)
+      .attr('y1', (d: any) => (d.source as any).y)
+      .attr('x2', (d: any) => (d.target as any).x)
+      .attr('y2', (d: any) => (d.target as any).y);
 
-    svg
-      .selectAll<SVGCircleElement, Node>('.node')
-      .attr('cx', (d: any) => d.x)
-      .attr('cy', (d: any) => d.y);
+    node.attr('cx', (d: any) => d.x).attr('cy', (d: any) => d.y);
   });
-
-  // Drag functions
-  const dragstarted = (event: d3.D3DragEvent<SVGCircleElement, Node, Node>) => {
-    if (!event.active) simulation.alphaTarget(0.3).restart();
-    event.subject.fx = event.subject.x;
-    event.subject.fy = event.subject.y;
-  };
-
-  const dragged = (event: d3.D3DragEvent<SVGCircleElement, Node, Node>) => {
-    event.subject.fx = event.x;
-    event.subject.fy = event.y;
-  };
-
-  const dragended = (event: d3.D3DragEvent<SVGCircleElement, Node, Node>) => {
-    if (!event.active) simulation.alphaTarget(0);
-    event.subject.fx = null;
-    event.subject.fy = null;
-  };
 };
+
+// Watch for changes in nodes and links
+// watch(
+//   () => [nodes, links],
+//   () => {
+//     renderGraph();
+//   },
+//   { deep: true }
+// );
+
+// Initial render
+onMounted(() => {
+  renderGraph();
+});
 </script>
 
 <style scoped>
 .graph-container {
-  margin-top: 2rem;
-  border: 1px solid #ccc;
-  height: 600px;
+  width: 100%;
+  height: 500px;
+  border: 1px solid #ddd;
 }
-
-.node {
-  cursor: pointer;
-  fill: #007bff;
-}
-
-.link {
-  stroke: #999;
-  stroke-opacity: 0.6;
-}
-</style>
+</style> -->

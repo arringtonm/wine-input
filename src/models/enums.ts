@@ -1,5 +1,3 @@
-// enums.ts
-
 export enum NodeType {
   Person = "Person",
   Winery = "Winery",
@@ -12,7 +10,6 @@ export enum RelationshipType {
   ParentChild = "parentChild",
   Consultant = "consultant",
 }
-
 
 export enum WinemakingRole {
   Winemaker = "Winemaker",
