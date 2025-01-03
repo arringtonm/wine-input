@@ -1,148 +1,131 @@
 <template>
   <div class="graph-viewer">
-    <div ref="networkContainer" class="network-container"></div>
+    <div ref="graphContainer" class="graph-container">
+      <div
+        v-if="hoveredNode"
+        class="node-modal"
+        :style="{
+          top: `${modalPosition.y}px`,
+          left: `${modalPosition.x}px`,
+        }"
+      >
+        <h3>{{ hoveredNode.name }}</h3>
+        <p v-if="hoveredNode.bio">{{ hoveredNode.bio }}</p>
+        <p v-if="hoveredNode.location">Location: {{ hoveredNode.location }}</p>
+        <p v-if="hoveredNode.established">
+          Established: {{ hoveredNode.established }}
+        </p>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
-import { Network } from 'vis-network';
-
-interface Node {
-  id: string;
-  name: string;
-  type: string; // "Person" or "Winery"
-  bio?: string;
-}
-
-interface Link {
-  id: string;
-  source: string;
-  target: string;
-  relationship: string;
-}
+import { ref, onMounted } from 'vue';
+import { Network } from 'vis-network/standalone';
+import type { Node, Link } from '../models/graph';
 
 const props = defineProps<{
   nodes: Node[];
   links: Link[];
 }>();
 
-const networkContainer = ref<HTMLElement | null>(null);
-let network: Network | null = null;
+const graphContainer = ref<HTMLElement | null>(null);
+const network = ref<Network | null>(null);
+const hoveredNode = ref<Node | null>(null);
+const modalPosition = ref({ x: 0, y: 0 });
 
-const renderNetwork = () => {
-  if (!networkContainer.value) return;
+const renderGraph = () => {
+  if (!graphContainer.value) return;
 
-  // Convert nodes and links to Vis.js format
-  const visNodes = props.nodes.map((node) => ({
+  const nodes = props.nodes.map((node) => ({
     id: node.id,
     label: node.name,
-    color: node.type === 'Winery' ? '#ff7f0e' : '#1f77b4',
-    title: `
-      <div style="padding: 10px; max-width: 200px;">
-        <strong>${node.name}</strong><br>
-        ${node.bio || 'No bio available.'}
-      </div>
-    `,
+    group: node.type,
   }));
 
-  const visEdges = props.links.map((link) => ({
+  const edges = props.links.map((link) => ({
     from: link.source,
     to: link.target,
     label: link.relationship,
-    arrows: 'to',
-    font: {
-      align: 'top',
-      vadjust: -10, // Adjust label position
-    },
+    arrows: 'none',
   }));
 
-  // Create the network
-  const data = { nodes: visNodes, edges: visEdges };
+  const data = { nodes, edges };
 
   const options = {
-    layout: {
-      improvedLayout: true,
-    },
     nodes: {
       shape: 'dot',
       size: 20,
       font: {
         size: 14,
-        color: '#ffffff',
       },
-      borderWidth: 2,
     },
     edges: {
       font: {
         size: 12,
-        align: 'top',
-        vadjust: -10, // Adjust label position
+        align: 'middle',
       },
       color: '#848484',
-      arrows: {
-        to: { enabled: true, scaleFactor: 1 },
-      },
-      smooth: {
-        enabled: true,
-        type: 'dynamic',
-        roundness: 0.5,
-      },
-    },
-    interaction: {
-      tooltipDelay: 100,
-      hover: true,
     },
     physics: {
       enabled: true,
-      stabilization: {
-        iterations: 200,
-      },
-      barnesHut: {
-        gravitationalConstant: -8000,
-        centralGravity: 0.3,
-        springLength: 95,
-        springConstant: 0.04,
-        damping: 0.09,
-        avoidOverlap: 0.5,
-      },
+    },
+    interaction: {
+      hover: true,
     },
   };
 
-  network = new Network(networkContainer.value, data, options);
+  network.value = new Network(graphContainer.value, data, options);
 
-  // Disable physics after stabilization
-  network.once('stabilizationIterationsDone', function () {
-    network?.setOptions({ physics: false });
+  network.value.on('hoverNode', (params) => {
+    const node = props.nodes.find((n) => n.id === params.node);
+    if (node) {
+      hoveredNode.value = node;
+
+      const { x, y } = network.value!.canvasToDOM({
+        x: params.pointer.canvas.x,
+        y: params.pointer.canvas.y,
+      });
+      modalPosition.value = { x, y };
+    }
+  });
+
+  network.value.on('blurNode', () => {
+    hoveredNode.value = null;
   });
 };
 
 onMounted(() => {
-  renderNetwork();
+  renderGraph();
 });
-
-watch(
-  () => [props.nodes, props.links],
-  () => {
-    renderNetwork();
-  },
-  { deep: true }
-);
 </script>
 
 <style scoped>
-.network-container {
+.graph-container {
   width: 100%;
-  max-width: 800px; /* Adjust as needed */
-  height: 600px; /* Adjust as needed */
-  border: 1px solid #ccc;
+  height: 500px;
+  position: relative;
 }
 
-.vis-network-tooltip {
-  background-color: #fff !important;
-  border: 1px solid #ccc !important;
-  border-radius: 4px;
-  padding: 10px !important;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+.node-modal {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  padding: 10px;
+  border-radius: 5px;
+  pointer-events: none;
+  z-index: 10;
+  transform: translate(-50%, -100%);
+}
+
+.node-modal h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.node-modal p {
+  margin: 5px 0 0;
+  font-size: 0.9rem;
 }
 </style>

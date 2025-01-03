@@ -1,77 +1,65 @@
-import { ref, watch } from "vue";
-import type { Node, Link } from "../models/graph";
+import { reactive, watchEffect } from 'vue';
+import type { Node, Link } from '../models/graph';
 
-// Local Storage Keys
-const LOCAL_STORAGE_KEYS = {
-  nodes: "graph_nodes",
-  links: "graph_links",
-};
-
-// Utility: Load data from localStorage
-const loadFromLocalStorage = <T>(key: string): T | [] => {
-  const data = localStorage.getItem(key);
-  return data ? JSON.parse(data) : [];
-};
-
-// Utility: Save data to localStorage
-const saveToLocalStorage = (key: string, data: any) => {
-  localStorage.setItem(key, JSON.stringify(data));
-};
-
-// Reactive Graph State
-const graph = ref<{
-  nodes: Node[];
-  links: Link[];
-}>({
-  nodes: loadFromLocalStorage<Node[]>(LOCAL_STORAGE_KEYS.nodes),
-  links: loadFromLocalStorage<Link[]>(LOCAL_STORAGE_KEYS.links),
+const graph = reactive({
+  nodes: JSON.parse(localStorage.getItem('graphNodes') || '[]') as Node[],
+  links: JSON.parse(localStorage.getItem('graphLinks') || '[]') as Link[],
 });
 
-// Watchers: Save Changes to Local Storage
-watch(
-  () => graph.value.nodes,
-  (newNodes) => {
-    saveToLocalStorage(LOCAL_STORAGE_KEYS.nodes, newNodes);
-  },
-  { deep: true }
-);
+// Persist to local storage whenever the graph changes
+watchEffect(() => {
+  localStorage.setItem('graphNodes', JSON.stringify(graph.nodes));
+  localStorage.setItem('graphLinks', JSON.stringify(graph.links));
+});
 
-watch(
-  () => graph.value.links,
-  (newLinks) => {
-    saveToLocalStorage(LOCAL_STORAGE_KEYS.links, newLinks);
-  },
-  { deep: true }
-);
-
-// Graph Operations
 const addNode = (node: Node) => {
-  graph.value.nodes.push(node);
+  if (!graph.nodes.find((n) => n.id === node.id)) {
+    graph.nodes.push(node);
+  } else {
+    console.warn(`Node with id ${node.id} already exists.`);
+  }
 };
 
-const removeNode = (id: string) => {
-  graph.value.nodes = graph.value.nodes.filter((node) => node.id !== id);
-  graph.value.links = graph.value.links.filter(
-    (link) => link.source !== id && link.target !== id
+const removeNode = (nodeId: string) => {
+  graph.nodes = graph.nodes.filter((node) => node.id !== nodeId);
+  graph.links = graph.links.filter(
+    (link) => link.source !== nodeId && link.target !== nodeId
   );
 };
 
 const updateNode = (updatedNode: Node) => {
-  const index = graph.value.nodes.findIndex((node) => node.id === updatedNode.id);
-  if (index !== -1) graph.value.nodes[index] = updatedNode;
+  const index = graph.nodes.findIndex((node) => node.id === updatedNode.id);
+  if (index !== -1) {
+    graph.nodes[index] = updatedNode;
+  } else {
+    console.warn(`Node with id ${updatedNode.id} not found.`);
+  }
 };
 
 const addLink = (link: Link) => {
-  graph.value.links.push(link);
+  if (!graph.links.find((l) => l.source === link.source && l.target === link.target)) {
+    graph.links.push(link);
+  } else {
+    console.warn(`Link from ${link.source} to ${link.target} already exists.`);
+  }
 };
 
-const removeLink = (id: string) => {
-  graph.value.links = graph.value.links.filter((link) => link.id !== id);
+const removeLink = (linkId: string) => {
+  graph.links = graph.links.filter((link) => link.id !== linkId);
 };
 
 const updateLink = (updatedLink: Link) => {
-  const index = graph.value.links.findIndex((link) => link.id === updatedLink.id);
-  if (index !== -1) graph.value.links[index] = updatedLink;
+  const index = graph.links.findIndex((link) => link.id === updatedLink.id);
+  if (index !== -1) {
+    graph.links[index] = updatedLink;
+  } else {
+    console.warn(`Link with id ${updatedLink.id} not found.`);
+  }
+};
+
+const bulkImport = (data: { nodes: Node[]; links: Link[] }) => {
+  data.nodes.forEach((node) => addNode(node));
+  data.links.forEach((link) => addLink(link));
 };
 
 export const useGraph = () => ({
@@ -82,4 +70,5 @@ export const useGraph = () => ({
   addLink,
   removeLink,
   updateLink,
+  bulkImport,
 });
